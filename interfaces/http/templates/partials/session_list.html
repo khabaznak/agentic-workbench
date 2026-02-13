@@ -1,0 +1,14 @@
+<div id="session-list">
+  <ul>
+    {% if sessions %}
+      {% for session in sessions %}
+        <li>
+          <div class="session-name">{{ session.name }}</div>
+          <div class="muted">Created: {{ session.created_at }}</div>
+        </li>
+      {% endfor %}
+    {% else %}
+      <li class="muted">No sessions yet.</li>
+    {% endif %}
+  </ul>
+</div>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atrium Sessions</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f7f5;
+        --panel: #ffffff;
+        --text: #1f2428;
+        --muted: #666f77;
+        --line: #d6dbdf;
+        --accent: #136f63;
+      }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top left, #ecf7f4, var(--bg));
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 2rem auto;
+        padding: 1rem;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1rem;
+      }
+      h1 {
+        margin-top: 0;
+        margin-bottom: 0.25rem;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      form {
+        display: flex;
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+      input {
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.6rem 0.75rem;
+        font-size: 1rem;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        padding: 0.6rem 0.85rem;
+        cursor: pointer;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        border-top: 1px solid var(--line);
+        padding: 0.75rem 0.15rem;
+      }
+      li:first-child {
+        border-top: 0;
+      }
+      .session-name {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="panel">
+        <h1>Decision Sessions</h1>
+        <p class="muted">Create a session and start capturing agent choice points.</p>
+
+        <form
+          hx-post="/sessions"
+          hx-target="#session-list"
+          hx-swap="outerHTML"
+        >
+          <input type="text" name="name" placeholder="Sprint 7 - API refactor" required />
+          <button type="submit">Create Session</button>
+        </form>
+
+        {% include 'partials/session_list.html' %}
+      </section>
+    </main>
+  </body>
+</html>
