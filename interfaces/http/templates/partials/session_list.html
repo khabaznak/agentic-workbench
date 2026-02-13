@@ -5,6 +5,7 @@
         <li>
           <div class="session-name">{{ session.name }}</div>
           <div class="muted">Created: {{ session.created_at }}</div>
+          <div><a href="/sessions/{{ session.id }}">Open Workspace</a></div>
         </li>
       {% endfor %}
     {% else %}

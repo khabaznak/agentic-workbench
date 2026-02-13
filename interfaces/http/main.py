@@ -168,6 +168,66 @@ def sessions_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/sessions/{session_id}", response_class=HTMLResponse)
+def session_workspace_page(request: Request, session_id: int) -> HTMLResponse:
+    graph = get_session_graph(session_id)
+    return templates.TemplateResponse(
+        request,
+        "session_workspace.html",
+        {
+            "session": graph.session,
+            "graph": graph,
+        },
+    )
+
+
+@app.get("/sessions/{session_id}/nodes/{node_id}/panel", response_class=HTMLResponse)
+def node_detail_panel(request: Request, session_id: int, node_id: int) -> HTMLResponse:
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                id, session_id, external_ref, type, title, status,
+                rationale, owner, priority, context_prompt,
+                created_at, updated_at
+            FROM nodes
+            WHERE id = ? AND session_id = ?
+            """,
+            (node_id, session_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+
+        choices = conn.execute(
+            """
+            SELECT id, node_id, label, text, is_chosen, chosen_at
+            FROM choices
+            WHERE node_id = ?
+            ORDER BY id ASC
+            """,
+            (node_id,),
+        ).fetchall()
+
+    return templates.TemplateResponse(
+        request,
+        "partials/node_detail_panel.html",
+        {
+            "node": _row_to_node(row),
+            "choices": [
+                ChoiceOut(
+                    id=choice["id"],
+                    node_id=choice["node_id"],
+                    label=choice["label"],
+                    text=choice["text"],
+                    is_chosen=bool(choice["is_chosen"]),
+                    chosen_at=choice["chosen_at"],
+                )
+                for choice in choices
+            ],
+        },
+    )
+
+
 @app.post("/sessions", response_class=HTMLResponse)
 def create_session_form(request: Request, name: str = Form(...)) -> HTMLResponse:
     cleaned = name.strip()

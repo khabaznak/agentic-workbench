@@ -1,0 +1,36 @@
+<h2>{{ node.title }}</h2>
+<p>
+  <strong>Type:</strong> {{ node.type }}
+  ·
+  <strong>Status:</strong> {{ node.status }}
+</p>
+{% if node.owner %}
+  <p><strong>Owner:</strong> {{ node.owner }}</p>
+{% endif %}
+{% if node.priority is not none %}
+  <p><strong>Priority:</strong> {{ node.priority }}</p>
+{% endif %}
+{% if node.context_prompt %}
+  <h3>Prior Prompt Context</h3>
+  <p>{{ node.context_prompt }}</p>
+{% endif %}
+{% if node.rationale %}
+  <h3>Notes / Rationale</h3>
+  <p>{{ node.rationale }}</p>
+{% endif %}
+
+{% if choices %}
+  <h3>Choices</h3>
+  <ul>
+    {% for choice in choices %}
+      <li>
+        <strong>{{ choice.label }}.</strong> {{ choice.text }}
+        {% if choice.is_chosen %}
+          <strong>(Chosen)</strong>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No choices recorded for this node.</p>
+{% endif %}

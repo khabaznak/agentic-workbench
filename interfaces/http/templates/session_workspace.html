@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ session.name }} · Atrium</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f2f4ef;
+        --panel: #ffffff;
+        --text: #1d1f22;
+        --muted: #6a7078;
+        --line: #d6dcd3;
+        --accent: #16697a;
+        --open: #247ba0;
+        --progress: #f2a65a;
+        --blocked: #d1495b;
+        --done: #3f8f6b;
+      }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top right, #e8f1ef 0%, var(--bg) 58%);
+      }
+      .wrap {
+        max-width: 1240px;
+        margin: 1.2rem auto;
+        padding: 0 1rem;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.8rem;
+      }
+      .back {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .subtitle {
+        color: var(--muted);
+        margin: 0.1rem 0 0;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+        gap: 1rem;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+      }
+      #graph {
+        height: 70vh;
+        min-height: 480px;
+        border-radius: 14px;
+      }
+      #node-detail {
+        padding: 1rem;
+      }
+      .legend {
+        display: flex;
+        gap: 0.6rem;
+        padding: 0.8rem 1rem 1rem;
+        flex-wrap: wrap;
+        border-top: 1px solid var(--line);
+      }
+      .chip {
+        font-size: 0.82rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        background: #fff;
+      }
+      .open { border-color: var(--open); }
+      .in-progress { border-color: var(--progress); }
+      .blocked { border-color: var(--blocked); }
+      .done { border-color: var(--done); }
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        #graph {
+          height: 55vh;
+          min-height: 360px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="topbar">
+        <div>
+          <a class="back" href="/sessions">← Sessions</a>
+          <h1>{{ session.name }}</h1>
+          <p class="subtitle">Visual decision graph of questions, branches, and selected paths.</p>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div class="panel">
+          <div id="graph"></div>
+          <div class="legend">
+            <span class="chip open">open</span>
+            <span class="chip in-progress">in_progress</span>
+            <span class="chip blocked">blocked</span>
+            <span class="chip done">done</span>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <div id="node-detail">
+            <h2>Node Details</h2>
+            <p class="subtitle">Click a node bubble to inspect context and choices.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const graphData = {{ graph.model_dump(mode='json') | tojson }};
+        const sessionId = {{ session.id }};
+
+        const elements = [
+          ...graphData.nodes.map((node) => ({
+            data: {
+              id: String(node.id),
+              label: node.title,
+              status: node.status,
+              type: node.type,
+            },
+          })),
+          ...graphData.edges.map((edge) => ({
+            data: {
+              id: `e-${edge.id}`,
+              source: String(edge.from_node_id),
+              target: String(edge.to_node_id),
+            },
+          })),
+        ];
+
+        const cy = cytoscape({
+          container: document.getElementById("graph"),
+          elements,
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": "#247ba0",
+                "label": "data(label)",
+                "font-size": "11px",
+                "text-wrap": "wrap",
+                "text-max-width": "130px",
+                "text-valign": "center",
+                "text-halign": "center",
+                "color": "#132027",
+                "shape": "round-rectangle",
+                "padding": "10px",
+                "border-width": 1,
+                "border-color": "#1f4c5b",
+                "width": "label",
+                "height": "label",
+              },
+            },
+            { selector: "node[status = 'open']", style: { "background-color": "#7fc8f8" } },
+            { selector: "node[status = 'in_progress']", style: { "background-color": "#f7c983" } },
+            { selector: "node[status = 'blocked']", style: { "background-color": "#f18f9d" } },
+            { selector: "node[status = 'done']", style: { "background-color": "#87c4a5" } },
+            {
+              selector: "edge",
+              style: {
+                "curve-style": "bezier",
+                "target-arrow-shape": "triangle",
+                "line-color": "#7d8c96",
+                "target-arrow-color": "#7d8c96",
+                "width": 1.7,
+              },
+            },
+            {
+              selector: ":selected",
+              style: {
+                "border-width": 2,
+                "border-color": "#0c3d4d",
+              },
+            },
+          ],
+          layout: {
+            name: "breadthfirst",
+            directed: true,
+            spacingFactor: 1.05,
+            padding: 28,
+          },
+        });
+
+        function loadNodePanel(nodeId) {
+          window.htmx.ajax("GET", `/sessions/${sessionId}/nodes/${nodeId}/panel`, {
+            target: "#node-detail",
+            swap: "innerHTML",
+          });
+        }
+
+        cy.on("tap", "node", (evt) => {
+          loadNodePanel(evt.target.id());
+        });
+
+        if (graphData.nodes.length > 0) {
+          loadNodePanel(graphData.nodes[0].id);
+        }
+      })();
+    </script>
+  </body>
+</html>

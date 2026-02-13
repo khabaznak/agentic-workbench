@@ -73,3 +73,54 @@ def test_session_page_renders_and_form_creates(tmp_path: Path) -> None:
         post_form = client.post("/sessions", data={"name": "Session C"})
         assert post_form.status_code == 200
         assert "Session C" in post_form.text
+        assert "Open Workspace" in post_form.text
+
+
+def test_workspace_and_node_panel_render(tmp_path: Path) -> None:
+    _set_test_db(tmp_path)
+    with TestClient(app) as client:
+        event_question = client.post(
+            "/api/events",
+            json={
+                "event_type": "question_presented",
+                "session_external_id": "workspace-1",
+                "agent_name": "codex",
+                "payload": {
+                    "node_ref": "q-workspace-1",
+                    "title": "Pick rendering approach",
+                    "context_prompt": "We need graph + panel.",
+                    "choices": [
+                        {"label": "A", "text": "Table"},
+                        {"label": "B", "text": "Cytoscape"},
+                    ],
+                },
+            },
+        )
+        assert event_question.status_code == 201
+        session_id = event_question.json()["session_id"]
+        node_id = event_question.json()["affected_node_id"]
+
+        choose = client.post(
+            "/api/events",
+            json={
+                "event_type": "choice_selected",
+                "session_external_id": "workspace-1",
+                "payload": {
+                    "question_node_ref": "q-workspace-1",
+                    "choice_label": "B",
+                },
+            },
+        )
+        assert choose.status_code == 201
+
+        workspace = client.get(f"/sessions/{session_id}")
+        assert workspace.status_code == 200
+        assert "Visual decision graph" in workspace.text
+        assert "id=\"graph\"" in workspace.text
+        assert "cytoscape" in workspace.text
+
+        panel = client.get(f"/sessions/{session_id}/nodes/{node_id}/panel")
+        assert panel.status_code == 200
+        assert "Pick rendering approach" in panel.text
+        assert "Prior Prompt Context" in panel.text
+        assert "(Chosen)" in panel.text
