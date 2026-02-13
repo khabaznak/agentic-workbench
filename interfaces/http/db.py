@@ -19,6 +19,7 @@ def resolve_db_path() -> Path:
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    external_id TEXT,
     name TEXT NOT NULL,
     started_at TEXT,
     ended_at TEXT,
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     owner TEXT,
     priority INTEGER,
     context_prompt TEXT,
+    external_ref TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(session_id) REFERENCES sessions(id)
@@ -77,6 +79,27 @@ def init_db() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA_SQL)
+        _run_migrations(conn)
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_external_id
+            ON sessions(external_id)
+            WHERE external_id IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_external_ref
+            ON nodes(external_ref)
+            WHERE external_ref IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_choices_node_label
+            ON choices(node_id, label)
+            """
+        )
         conn.commit()
 
 
@@ -89,3 +112,19 @@ def get_conn() -> sqlite3.Connection:
         conn.commit()
     finally:
         conn.close()
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    _ensure_column(conn, "sessions", "external_id", "TEXT")
+    _ensure_column(conn, "nodes", "external_ref", "TEXT")
+
+
+def _ensure_column(
+    conn: sqlite3.Connection, table_name: str, column_name: str, column_type: str
+) -> None:
+    existing = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    names = {row[1] for row in existing}
+    if column_name not in names:
+        conn.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+        )
