@@ -2,8 +2,22 @@
   <h3>Replay Prompt ({{ choice_label }})</h3>
   <textarea id="replay-prompt-text" rows="8" style="width: 100%;">{{ replay_prompt }}</textarea>
   <button
+    id="copy-replay-prompt-button"
     type="button"
-    onclick="navigator.clipboard.writeText(document.getElementById('replay-prompt-text').value)"
+    onclick="
+      (async () => {
+        const btn = document.getElementById('copy-replay-prompt-button');
+        const text = document.getElementById('replay-prompt-text').value;
+        const previous = btn.textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = 'Copied';
+        } catch (err) {
+          btn.textContent = 'Copy failed';
+        }
+        setTimeout(() => { btn.textContent = previous; }, 1300);
+      })();
+    "
   >
     Copy Prompt
   </button>

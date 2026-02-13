@@ -1,0 +1,59 @@
+[
+  {
+    "source": "mcp",
+    "event_type": "question_presented",
+    "session_external_id": "fixture-session-001",
+    "agent_name": "codex",
+    "payload": {
+      "node_ref": "q-fixture-1",
+      "title": "Choose integration mode",
+      "context_prompt": "Need fastest MVP path.",
+      "choices": [
+        {"label": "A", "text": "Manual entry only"},
+        {"label": "B", "text": "MCP events + manual"},
+        {"label": "C", "text": "Plugin first"}
+      ]
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "choice_selected",
+    "session_external_id": "fixture-session-001",
+    "payload": {
+      "question_node_ref": "q-fixture-1",
+      "choice_label": "B"
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "note_added",
+    "session_external_id": "fixture-session-001",
+    "payload": {
+      "node_ref": "q-fixture-1",
+      "note": "Selected B for lowest implementation risk."
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "question_presented",
+    "session_external_id": "fixture-session-001",
+    "payload": {
+      "node_ref": "q-fixture-2",
+      "parent_node_ref": "q-fixture-1",
+      "title": "How strict should event validation be?",
+      "choices": [
+        {"label": "A", "text": "Loose validation"},
+        {"label": "B", "text": "Strict validation"}
+      ]
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "node_status_changed",
+    "session_external_id": "fixture-session-001",
+    "payload": {
+      "node_ref": "q-fixture-2",
+      "status": "in_progress"
+    }
+  }
+]

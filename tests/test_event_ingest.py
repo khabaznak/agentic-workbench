@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -10,6 +11,11 @@ from interfaces.http.main import app
 
 def _set_test_db(tmp_path: Path) -> None:
     os.environ["ATRIUM_DB_PATH"] = str(tmp_path / "atrium_events_test.db")
+
+
+def _load_fixture(name: str) -> list[dict]:
+    fixture_path = Path(__file__).parent / "fixtures" / "mcp_events" / name
+    return json.loads(fixture_path.read_text())
 
 
 def test_event_ingest_maps_to_graph_state(tmp_path: Path) -> None:
@@ -242,3 +248,38 @@ def test_graph_filters_and_replay_prompt(tmp_path: Path) -> None:
         assert "Decision point: Choose rollout path" in prompt
         assert "Previously chosen path: A: Conservative" in prompt
         assert "Alternative to execute now: B: Aggressive" in prompt
+
+
+def test_ingest_from_sample_fixture_payloads(tmp_path: Path) -> None:
+    _set_test_db(tmp_path)
+
+    with TestClient(app) as client:
+        events = _load_fixture("session_happy_path.json")
+        session_id: int | None = None
+        for event in events:
+            response = client.post("/api/events", json=event)
+            assert response.status_code == 201
+            if session_id is None:
+                session_id = response.json()["session_id"]
+
+        assert session_id is not None
+
+        graph = client.get(f"/api/sessions/{session_id}/graph")
+        assert graph.status_code == 200
+        graph_json = graph.json()
+        assert graph_json["session"]["external_id"] == "fixture-session-001"
+        assert len(graph_json["nodes"]) == 2
+        assert len(graph_json["edges"]) == 1
+
+        first = next(
+            node for node in graph_json["nodes"] if node["external_ref"] == "q-fixture-1"
+        )
+        second = next(
+            node for node in graph_json["nodes"] if node["external_ref"] == "q-fixture-2"
+        )
+        assert first["owner"] == "agent:codex"
+        assert second["status"] == "in_progress"
+
+        replay = client.get(f"/api/nodes/{first['id']}/replay-prompt?choice_label=C")
+        assert replay.status_code == 200
+        assert "Alternative to execute now: C: Plugin first" in replay.json()["prompt"]

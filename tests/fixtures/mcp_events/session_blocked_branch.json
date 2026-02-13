@@ -1,0 +1,33 @@
+[
+  {
+    "source": "mcp",
+    "event_type": "question_presented",
+    "session_external_id": "fixture-session-002",
+    "payload": {
+      "node_ref": "qb-1",
+      "title": "Choose deployment path",
+      "choices": [
+        {"label": "A", "text": "Canary"},
+        {"label": "B", "text": "Blue/Green"}
+      ]
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "choice_selected",
+    "session_external_id": "fixture-session-002",
+    "payload": {
+      "question_node_ref": "qb-1",
+      "choice_label": "A"
+    }
+  },
+  {
+    "source": "mcp",
+    "event_type": "node_status_changed",
+    "session_external_id": "fixture-session-002",
+    "payload": {
+      "node_ref": "qb-1",
+      "status": "blocked"
+    }
+  }
+]

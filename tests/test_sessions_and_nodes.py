@@ -118,6 +118,8 @@ def test_workspace_and_node_panel_render(tmp_path: Path) -> None:
         assert "Visual decision graph" in workspace.text
         assert "id=\"graph\"" in workspace.text
         assert "cytoscape" in workspace.text
+        assert "nodes:" in workspace.text
+        assert "choices:" in workspace.text
 
         panel = client.get(f"/sessions/{session_id}/nodes/{node_id}/panel")
         assert panel.status_code == 200

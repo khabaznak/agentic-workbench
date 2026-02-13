@@ -47,6 +47,15 @@
         color: var(--muted);
         margin: 0.1rem 0 0;
       }
+      .summary {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.6rem;
+      }
+      .summary .chip {
+        font-size: 0.85rem;
+      }
       .layout {
         display: grid;
         grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
@@ -125,6 +134,17 @@
           <a class="back" href="/sessions">← Sessions</a>
           <h1>{{ session.name }}</h1>
           <p class="subtitle">Visual decision graph of questions, branches, and selected paths.</p>
+          <div class="summary">
+            <span class="chip">nodes: {{ graph.nodes | length }}</span>
+            <span class="chip">edges: {{ graph.edges | length }}</span>
+            <span class="chip">choices: {{ graph.choices | length }}</span>
+            {% if active_status %}
+              <span class="chip">filter: {{ active_status }}</span>
+            {% endif %}
+            {% if unchosen_only %}
+              <span class="chip">showing: unchosen branches</span>
+            {% endif %}
+          </div>
         </div>
       </header>
 
@@ -246,6 +266,14 @@
             swap: "innerHTML",
           });
         }
+
+        document.body.addEventListener("htmx:responseError", (evt) => {
+          const detail = evt.detail || {};
+          const target = detail.target;
+          if (target && target.id === "node-detail") {
+            target.innerHTML = "<h2>Unable to load node details</h2><p class='subtitle'>Try selecting the node again.</p>";
+          }
+        });
 
         cy.on("tap", "node", (evt) => {
           loadNodePanel(evt.target.id());
