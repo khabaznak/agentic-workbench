@@ -52,6 +52,30 @@
         grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
         gap: 1rem;
       }
+      .filters {
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        margin-bottom: 0.9rem;
+        flex-wrap: wrap;
+      }
+      .filters select,
+      .filters button,
+      .filters a {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 0.45rem 0.6rem;
+        font-size: 0.93rem;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .filters button {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+        cursor: pointer;
+      }
       .panel {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -106,6 +130,22 @@
 
       <section class="layout">
         <div class="panel">
+          <form class="filters" method="get" action="/sessions/{{ session.id }}">
+            <label for="status">Status:</label>
+            <select id="status" name="status">
+              <option value="" {% if not active_status %}selected{% endif %}>all</option>
+              <option value="open" {% if active_status == "open" %}selected{% endif %}>open</option>
+              <option value="in_progress" {% if active_status == "in_progress" %}selected{% endif %}>in_progress</option>
+              <option value="blocked" {% if active_status == "blocked" %}selected{% endif %}>blocked</option>
+              <option value="done" {% if active_status == "done" %}selected{% endif %}>done</option>
+            </select>
+            <label>
+              <input type="checkbox" name="unchosen_only" value="true" {% if unchosen_only %}checked{% endif %}/>
+              unchosen branches
+            </label>
+            <button type="submit">Apply</button>
+            <a href="/sessions/{{ session.id }}">Reset</a>
+          </form>
           <div id="graph"></div>
           <div class="legend">
             <span class="chip open">open</span>
@@ -213,6 +253,9 @@
 
         if (graphData.nodes.length > 0) {
           loadNodePanel(graphData.nodes[0].id);
+        } else {
+          document.getElementById("node-detail").innerHTML =
+            "<h2>No nodes for active filters</h2><p class='subtitle'>Adjust filters to see more decision nodes.</p>";
         }
       })();
     </script>

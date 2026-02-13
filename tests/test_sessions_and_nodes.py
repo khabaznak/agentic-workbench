@@ -124,3 +124,11 @@ def test_workspace_and_node_panel_render(tmp_path: Path) -> None:
         assert "Pick rendering approach" in panel.text
         assert "Prior Prompt Context" in panel.text
         assert "(Chosen)" in panel.text
+        assert "Generate Replay Prompt" in panel.text
+
+        replay = client.get(
+            f"/sessions/{session_id}/nodes/{node_id}/replay-prompt?choice_label=A"
+        )
+        assert replay.status_code == 200
+        assert "Replay Prompt (A)" in replay.text
+        assert "Copy Prompt" in replay.text

@@ -27,10 +27,20 @@
         <strong>{{ choice.label }}.</strong> {{ choice.text }}
         {% if choice.is_chosen %}
           <strong>(Chosen)</strong>
+        {% else %}
+          <button
+            hx-get="/sessions/{{ session_id }}/nodes/{{ node.id }}/replay-prompt?choice_label={{ choice.label }}"
+            hx-target="#replay-box"
+            hx-swap="innerHTML"
+            type="button"
+          >
+            Generate Replay Prompt
+          </button>
         {% endif %}
       </li>
     {% endfor %}
   </ul>
+  <div id="replay-box"></div>
 {% else %}
   <p>No choices recorded for this node.</p>
 {% endif %}

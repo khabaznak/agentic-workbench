@@ -122,6 +122,12 @@ class EventIngestOut(BaseModel):
     affected_node_id: int | None
 
 
+class ReplayPromptOut(BaseModel):
+    node_id: int
+    choice_label: str
+    prompt: str
+
+
 def _rows_to_sessions(rows: list) -> list[SessionOut]:
     return [
         SessionOut(
@@ -169,14 +175,25 @@ def sessions_page(request: Request) -> HTMLResponse:
 
 
 @app.get("/sessions/{session_id}", response_class=HTMLResponse)
-def session_workspace_page(request: Request, session_id: int) -> HTMLResponse:
-    graph = get_session_graph(session_id)
+def session_workspace_page(
+    request: Request,
+    session_id: int,
+    status: NodeStatus | None = None,
+    unchosen_only: bool = False,
+) -> HTMLResponse:
+    graph = _build_session_graph(
+        session_id=session_id,
+        status=status,
+        unchosen_only=unchosen_only,
+    )
     return templates.TemplateResponse(
         request,
         "session_workspace.html",
         {
             "session": graph.session,
             "graph": graph,
+            "active_status": status,
+            "unchosen_only": unchosen_only,
         },
     )
 
@@ -213,6 +230,7 @@ def node_detail_panel(request: Request, session_id: int, node_id: int) -> HTMLRe
         "partials/node_detail_panel.html",
         {
             "node": _row_to_node(row),
+            "session_id": session_id,
             "choices": [
                 ChoiceOut(
                     id=choice["id"],
@@ -224,6 +242,35 @@ def node_detail_panel(request: Request, session_id: int, node_id: int) -> HTMLRe
                 )
                 for choice in choices
             ],
+        },
+    )
+
+
+@app.get(
+    "/sessions/{session_id}/nodes/{node_id}/replay-prompt",
+    response_class=HTMLResponse,
+)
+def replay_prompt_panel(
+    request: Request,
+    session_id: int,
+    node_id: int,
+    choice_label: str,
+) -> HTMLResponse:
+    with get_conn() as conn:
+        node = conn.execute(
+            "SELECT id FROM nodes WHERE id = ? AND session_id = ?",
+            (node_id, session_id),
+        ).fetchone()
+        if node is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+        replay = _build_replay_prompt(conn, node_id, choice_label)
+
+    return templates.TemplateResponse(
+        request,
+        "partials/replay_prompt.html",
+        {
+            "replay_prompt": replay.prompt,
+            "choice_label": replay.choice_label,
         },
     )
 
@@ -299,7 +346,23 @@ def get_session(session_id: int) -> SessionOut:
 
 
 @app.get("/api/sessions/{session_id}/graph", response_model=SessionGraphOut)
-def get_session_graph(session_id: int) -> SessionGraphOut:
+def get_session_graph(
+    session_id: int,
+    status: NodeStatus | None = None,
+    unchosen_only: bool = False,
+) -> SessionGraphOut:
+    return _build_session_graph(
+        session_id=session_id,
+        status=status,
+        unchosen_only=unchosen_only,
+    )
+
+
+def _build_session_graph(
+    session_id: int,
+    status: NodeStatus | None = None,
+    unchosen_only: bool = False,
+) -> SessionGraphOut:
     with get_conn() as conn:
         session_row = conn.execute(
             """
@@ -345,30 +408,51 @@ def get_session_graph(session_id: int) -> SessionGraphOut:
             (session_id,),
         ).fetchall()
 
+    nodes = [_row_to_node(row) for row in node_rows]
+    edges = [
+        EdgeOut(
+            id=row["id"],
+            from_node_id=row["from_node_id"],
+            to_node_id=row["to_node_id"],
+            type=row["type"],
+            created_at=row["created_at"],
+        )
+        for row in edge_rows
+    ]
+    choices = [
+        ChoiceOut(
+            id=row["id"],
+            node_id=row["node_id"],
+            label=row["label"],
+            text=row["text"],
+            is_chosen=bool(row["is_chosen"]),
+            chosen_at=row["chosen_at"],
+        )
+        for row in choice_rows
+    ]
+
+    visible_node_ids = {node.id for node in nodes}
+    if status is not None:
+        visible_node_ids = {node.id for node in nodes if node.status == status}
+    if unchosen_only:
+        nodes_with_unchosen = {
+            choice.node_id for choice in choices if not choice.is_chosen
+        }
+        visible_node_ids = visible_node_ids.intersection(nodes_with_unchosen)
+
+    filtered_nodes = [node for node in nodes if node.id in visible_node_ids]
+    filtered_edges = [
+        edge
+        for edge in edges
+        if edge.from_node_id in visible_node_ids and edge.to_node_id in visible_node_ids
+    ]
+    filtered_choices = [choice for choice in choices if choice.node_id in visible_node_ids]
+
     return SessionGraphOut(
         session=_rows_to_sessions([session_row])[0],
-        nodes=[_row_to_node(row) for row in node_rows],
-        edges=[
-            EdgeOut(
-                id=row["id"],
-                from_node_id=row["from_node_id"],
-                to_node_id=row["to_node_id"],
-                type=row["type"],
-                created_at=row["created_at"],
-            )
-            for row in edge_rows
-        ],
-        choices=[
-            ChoiceOut(
-                id=row["id"],
-                node_id=row["node_id"],
-                label=row["label"],
-                text=row["text"],
-                is_chosen=bool(row["is_chosen"]),
-                chosen_at=row["chosen_at"],
-            )
-            for row in choice_rows
-        ],
+        nodes=filtered_nodes,
+        edges=filtered_edges,
+        choices=filtered_choices,
     )
 
 
@@ -473,6 +557,15 @@ def update_node(node_id: int, payload: NodeUpdate) -> NodeOut:
             (node_id,),
         ).fetchone()
     return _row_to_node(row)
+
+
+@app.get("/api/nodes/{node_id}/replay-prompt", response_model=ReplayPromptOut)
+def get_replay_prompt(node_id: int, choice_label: str) -> ReplayPromptOut:
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM nodes WHERE id = ?", (node_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+        return _build_replay_prompt(conn, node_id, choice_label)
 
 
 @app.post("/api/events", response_model=EventIngestOut, status_code=201)
@@ -726,3 +819,59 @@ def _clean_ref(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text if text else None
+
+
+def _build_replay_prompt(
+    conn: sqlite3.Connection, node_id: int, choice_label: str
+) -> ReplayPromptOut:
+    node = conn.execute(
+        """
+        SELECT id, title, context_prompt
+        FROM nodes
+        WHERE id = ?
+        """,
+        (node_id,),
+    ).fetchone()
+    if node is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    choice = conn.execute(
+        """
+        SELECT label, text, is_chosen
+        FROM choices
+        WHERE node_id = ? AND label = ?
+        """,
+        (node_id, choice_label),
+    ).fetchone()
+    if choice is None:
+        raise HTTPException(status_code=404, detail="Choice not found")
+
+    chosen = conn.execute(
+        """
+        SELECT label, text
+        FROM choices
+        WHERE node_id = ? AND is_chosen = 1
+        LIMIT 1
+        """,
+        (node_id,),
+    ).fetchone()
+    chosen_summary = (
+        f"{chosen['label']}: {chosen['text']}"
+        if chosen is not None
+        else "No previous choice was marked as chosen."
+    )
+    context = node["context_prompt"] or "No context prompt was stored."
+
+    prompt = (
+        f"Decision point: {node['title']}\n"
+        f"Context from the original session: {context}\n"
+        f"Previously chosen path: {chosen_summary}\n"
+        f"Alternative to execute now: {choice['label']}: {choice['text']}\n"
+        "Generate an incremental implementation plan for this alternative, list risks, "
+        "and describe how to apply it without discarding current progress."
+    )
+    return ReplayPromptOut(
+        node_id=node_id,
+        choice_label=choice["label"],
+        prompt=prompt,
+    )

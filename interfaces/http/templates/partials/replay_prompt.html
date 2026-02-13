@@ -1,0 +1,10 @@
+<section>
+  <h3>Replay Prompt ({{ choice_label }})</h3>
+  <textarea id="replay-prompt-text" rows="8" style="width: 100%;">{{ replay_prompt }}</textarea>
+  <button
+    type="button"
+    onclick="navigator.clipboard.writeText(document.getElementById('replay-prompt-text').value)"
+  >
+    Copy Prompt
+  </button>
+</section>

@@ -163,3 +163,82 @@ def test_choice_selected_falls_back_to_latest_question(tmp_path: Path) -> None:
         chosen = [c for c in graph_json["choices"] if c["node_id"] == node_id and c["is_chosen"]]
         assert len(chosen) == 1
         assert chosen[0]["label"] == "A"
+
+
+def test_graph_filters_and_replay_prompt(tmp_path: Path) -> None:
+    _set_test_db(tmp_path)
+
+    with TestClient(app) as client:
+        base = client.post(
+            "/api/events",
+            json={
+                "event_type": "question_presented",
+                "session_external_id": "session-003",
+                "payload": {
+                    "node_ref": "q-filter-1",
+                    "title": "Choose rollout path",
+                    "context_prompt": "Current path is conservative.",
+                    "choices": [
+                        {"label": "A", "text": "Conservative"},
+                        {"label": "B", "text": "Aggressive"},
+                    ],
+                },
+            },
+        )
+        assert base.status_code == 201
+        session_id = base.json()["session_id"]
+        node_id = base.json()["affected_node_id"]
+
+        client.post(
+            "/api/events",
+            json={
+                "event_type": "choice_selected",
+                "session_external_id": "session-003",
+                "payload": {
+                    "question_node_ref": "q-filter-1",
+                    "choice_label": "A",
+                },
+            },
+        )
+
+        client.post(
+            "/api/events",
+            json={
+                "event_type": "question_presented",
+                "session_external_id": "session-003",
+                "payload": {
+                    "node_ref": "q-filter-2",
+                    "title": "Follow-up question",
+                    "choices": ["One", "Two"],
+                },
+            },
+        )
+        client.post(
+            "/api/events",
+            json={
+                "event_type": "node_status_changed",
+                "session_external_id": "session-003",
+                "payload": {
+                    "node_ref": "q-filter-2",
+                    "status": "done",
+                },
+            },
+        )
+
+        filtered_status = client.get(f"/api/sessions/{session_id}/graph?status=done")
+        assert filtered_status.status_code == 200
+        done_nodes = filtered_status.json()["nodes"]
+        assert len(done_nodes) == 1
+        assert done_nodes[0]["external_ref"] == "q-filter-2"
+
+        filtered_unchosen = client.get(f"/api/sessions/{session_id}/graph?unchosen_only=true")
+        assert filtered_unchosen.status_code == 200
+        unchosen_nodes = filtered_unchosen.json()["nodes"]
+        assert len(unchosen_nodes) == 2
+
+        replay = client.get(f"/api/nodes/{node_id}/replay-prompt?choice_label=B")
+        assert replay.status_code == 200
+        prompt = replay.json()["prompt"]
+        assert "Decision point: Choose rollout path" in prompt
+        assert "Previously chosen path: A: Conservative" in prompt
+        assert "Alternative to execute now: B: Aggressive" in prompt
